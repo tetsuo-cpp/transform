@@ -27,7 +27,7 @@ package cps
 import (
 	"fmt"
 	"math"
-	"math/bits"
+	"math/big"
 	"math/rand"
 	"slices"
 	"sort"
@@ -85,7 +85,7 @@ const (
 type RegUseSpecT struct {
 	PhaseOffset  int // -2, -1, 0 for early, middle, and late use
 	Class        *RegisterClassT
-	RegisterMask uint64 // which registers can be used here
+	RegisterMask *big.Int // which registers can be used here
 }
 
 // A set of registers.  The same register may be in more than one
@@ -105,7 +105,7 @@ type RegisterT interface {
 type bundleT struct {
 	value           *valueT
 	Class           *RegisterClassT
-	allowedRegsMask uint64     // all the RegUseSpecT masks &'ed together
+	allowedRegsMask *big.Int   // all the RegUseSpecT masks &'ed together
 	uses            []*regUseT // needed for computing the cost
 	liveRange       liveRangeT
 	totalLength     int       // sum of interval lengths
@@ -216,7 +216,8 @@ func (bundle *bundleT) addIntervals(other *bundleT) {
 func (bundle *bundleT) initialize() bool {
 	vart := bundle.value.vars.Members()[0] // for error messages
 	var class *RegisterClassT
-	mask := ^uint64(0)
+	mask := new(big.Int).Lsh(big.NewInt(1), 256) // large initial mask
+	mask.Sub(mask, big.NewInt(1))                // all bits set
 	spillCost := 0
 	callPriority := 0
 	for _, use := range bundle.uses {
@@ -232,7 +233,7 @@ func (bundle *bundleT) initialize() bool {
 			panic(fmt.Sprintf("value %s_%d has two register classes %s and %s (from call %s)", vart.Name, vart.Id,
 				use.spec.Class.Name, class.Name, vart.Binder))
 		}
-		mask &= use.spec.RegisterMask
+		mask = new(big.Int).And(mask, use.spec.RegisterMask)
 	}
 	if class == nil {
 		return false
@@ -246,7 +247,7 @@ func (bundle *bundleT) initialize() bool {
 	bundle.allowedRegsMask = mask
 	bundle.spillCost = spillCost / bundle.totalLength
 	bundle.callPriority = callPriority
-	if mask == 0 {
+	if mask.Sign() == 0 {
 		panic(fmt.Sprintf("value %s_%d has no allowable registers", vart.Name, vart.Id))
 	}
 	return true
@@ -628,8 +629,8 @@ func AllocateRegisters(top *CallNodeT) {
 	regLiveRanges := map[RegisterT]*liveRangeT{}
 	for !bundleQueue.Empty() {
 		bundle := bundleQueue.Dequeue()
-		mask := bundle.allowedRegsMask
-		if mask == 0 {
+		mask := new(big.Int).Set(bundle.allowedRegsMask)
+		if mask.Sign() == 0 {
 			panic("no allowed registers")
 		}
 		i := startBit(mask)
@@ -654,20 +655,24 @@ func AllocateRegisters(top *CallNodeT) {
 				minMaxSpillCost = maxSpillCost
 				spillReg = reg
 			}
-			mask ^= 1 << i
-			if mask == 0 {
+			mask.Xor(mask, new(big.Int).Lsh(big.NewInt(1), uint(i)))
+			if mask.Sign() == 0 {
 				break
 			}
 			i = nextBit(mask, i)
 		}
-		if mask == 0 {
+		if mask.Sign() == 0 {
 			// While traversing we want to keep track of the best spill options:
 			// Evict: reg, conflicting bundles, max spill cost of conflicting bundles
 			// Split: reg, first conflicting use, max spill cost of conflicting bundles
 			// mask := bundle.allowedRegsMask
 			fmt.Printf("failed to allocate register for")
 			for _, vart := range bundle.value.vars.Members() {
-				fmt.Printf(" %s", vart)
+				typeStr := "unknown"
+				if vart.Type != nil {
+					typeStr = vart.Type.String()
+				}
+				fmt.Printf(" %s (type: %s)", vart, typeStr)
 			}
 			fmt.Printf("\n")
 			for _, interval := range bundle.liveRange.intervals {
@@ -768,37 +773,50 @@ func findConflict(
 // Start each register search with a register chosen at random.
 var random = rand.New(rand.NewSource(0))
 
-func startBit(mask uint64) int {
-	index := random.Intn(bits.OnesCount64(mask))
-	bit := 0
-	for {
-		if mask&1 == 1 {
-			if index == 0 {
-				break
-			}
-			index -= 1
+func onesCount(mask *big.Int) int {
+	count := 0
+	for i := 0; i < mask.BitLen(); i++ {
+		if mask.Bit(i) == 1 {
+			count++
 		}
-		mask >>= 1
-		bit += 1
+	}
+	return count
+}
+
+func startBit(mask *big.Int) int {
+	count := onesCount(mask)
+	if count == 0 {
+		return 0
+	}
+	index := random.Intn(count)
+	bit := 0
+	for i := 0; i < mask.BitLen(); i++ {
+		if mask.Bit(i) == 1 {
+			if index == 0 {
+				return i
+			}
+			index--
+		}
+		bit++
 	}
 	return bit
 }
 
-func nextBit(mask uint64, bit int) int {
-	bit += 1
-	temp := mask >> bit
-	for {
-		if temp == 0 {
-			temp = mask
-			bit = 0
+func nextBit(mask *big.Int, bit int) int {
+	bit++
+	// Try to find a bit after the current position
+	for i := bit; i < mask.BitLen(); i++ {
+		if mask.Bit(i) == 1 {
+			return i
 		}
-		if temp&1 == 1 {
-			break
-		}
-		temp >>= 1
-		bit += 1
 	}
-	return bit
+	// Wrap around to the beginning
+	for i := 0; i < bit; i++ {
+		if mask.Bit(i) == 1 {
+			return i
+		}
+	}
+	return 0
 }
 
 // 1. Collect all variables bound within the procedure.

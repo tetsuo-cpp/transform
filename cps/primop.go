@@ -7,6 +7,7 @@ package cps
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
 
 	"go/constant"
@@ -26,20 +27,28 @@ func (reg *registerT) Class() *RegisterClassT { return reg.class }
 func (reg *registerT) String() string         { return reg.name }
 
 const (
-	numRegs     = 6
-	allRegsMask = (1 << numRegs) - 1
+	numRegs = 6
 )
 
+var allRegsMask *big.Int
 var generalRegister = &RegisterClassT{Name: "r", Registers: make([]RegisterT, numRegs)}
 
 var procOutputSpecs = make([]*RegUseSpecT, numRegs+1)
-var inputSpec = &RegUseSpecT{PhaseOffset: EarlyRegUse, Class: generalRegister, RegisterMask: allRegsMask}
-var outputSpec = &RegUseSpecT{Class: generalRegister, RegisterMask: allRegsMask}
+var inputSpec *RegUseSpecT
+var outputSpec *RegUseSpecT
 
 func init() {
+	// Initialize allRegsMask
+	allRegsMask = new(big.Int).Lsh(big.NewInt(1), numRegs)
+	allRegsMask.Sub(allRegsMask, big.NewInt(1))
+
+	inputSpec = &RegUseSpecT{PhaseOffset: EarlyRegUse, Class: generalRegister, RegisterMask: allRegsMask}
+	outputSpec = &RegUseSpecT{Class: generalRegister, RegisterMask: allRegsMask}
+
 	for i := range numRegs {
 		generalRegister.Registers[i] = &registerT{generalRegister, "r" + strconv.Itoa(i)}
-		procOutputSpecs[i] = &RegUseSpecT{Class: generalRegister, RegisterMask: 1 << i}
+		regMask := new(big.Int).Lsh(big.NewInt(1), uint(i))
+		procOutputSpecs[i] = &RegUseSpecT{Class: generalRegister, RegisterMask: regMask}
 	}
 }
 
