@@ -14,8 +14,8 @@ import (
 	"go/ast"
 	"go/types"
 
-	"github.com/s48/transform/cps"
-	"github.com/s48/transform/front"
+	"github.com/tetsuo-cpp/transform/cps"
+	"github.com/tetsuo-cpp/transform/front"
 )
 
 func main() {

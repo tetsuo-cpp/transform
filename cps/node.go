@@ -10,7 +10,7 @@ import (
 	"go/types"
 	"maps"
 
-	"github.com/s48/transform/util"
+	"github.com/tetsuo-cpp/transform/util"
 )
 
 // Wart: We need an interface to replace Go's tokens for source data.
@@ -518,7 +518,7 @@ func CheckNode(topCall *CallNodeT) {
 				}
 				if next.Parent() != node || next.Index() != i {
 					PpCps(node)
-					panic(fmt.Sprintf("bad parent pointer %+v %+v", next))
+					panic(fmt.Sprintf("bad parent pointer %+v", next))
 				}
 				check(next, node)
 			}

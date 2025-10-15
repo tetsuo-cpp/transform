@@ -12,8 +12,8 @@ import (
 	"go/types"
 	"math/big"
 
-	. "github.com/s48/transform/cps"
-	"github.com/s48/transform/util"
+	. "github.com/tetsuo-cpp/transform/cps"
+	"github.com/tetsuo-cpp/transform/util"
 )
 
 // Keeping track of where we are in the Go AST.
