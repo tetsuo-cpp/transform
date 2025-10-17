@@ -20,8 +20,8 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	. "github.com/s48/transform/cps"
-	. "github.com/s48/transform/util"
+	. "github.com/tetsuo-cpp/transform/cps"
+	. "github.com/tetsuo-cpp/transform/util"
 )
 
 // 'builtinPackage' means a package whose functions are implemented

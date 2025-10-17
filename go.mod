@@ -1,4 +1,4 @@
-module github.com/s48/transform
+module github.com/tetsuo-cpp/transform
 
 go 1.22.2
 
