@@ -727,6 +727,8 @@ func AllocateRegisters(top *CallNodeT) {
 		if bundle.Register == nil {
 			panic(fmt.Sprintf("no register %d in class %s", regIndex, regClass.Name))
 		}
+		fmt.Printf("Assigned %s to register %d (minReg=%d, usableRegIndex=%d, conflicts=%d)\n",
+			bundle.value.vars.Members()[0], bundle.Register.Number(), regIndex, bundle.minReg, len(bundle.conflicts))
 	}
 
 	for _, vart := range vars {
